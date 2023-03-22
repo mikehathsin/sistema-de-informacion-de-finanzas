@@ -1,0 +1,1617 @@
+	#  EMPRESA..............:  Universidad Nacional Experimental de Guayana
+	#  AUTOR................:  Ing. Elio J. Freites A.
+	#  MODULO...............:  SIF404P 
+	#  DESCRIPCION..........:  Mantenimiento de Registro Aranceles
+	#  FECHA DE CREACION....:  21/04/1999
+	#  LLAMADO POR MODULO...:  SIF004P
+	#  ULTIMA MODIFICACION..:  
+
+	GLOBALS
+	   "sifglob.4gl"
+
+	DEFINE
+           l_mensaje1      CHAR(60),
+	   l_consulta      SMALLINT,
+	   l_tecla         SMALLINT,
+	   l_numpag        SMALLINT,
+	   l_regpag        SMALLINT,
+	   l_sif304d       RECORD LIKE sif304d.*,
+	   l_sif205d       RECORD LIKE sif205d.*,
+	   l_sif205t       RECORD LIKE sif205d.*,
+	   l_sif305d       RECORD LIKE sif305d.*,
+	   l_regs          RECORD
+	      marca              CHAR(1),
+	      sif305d_lin_rec    LIKE sif305d.sif305d_lin_rec,
+	      sif305d_cod_con    LIKE sif305d.sif305d_cod_con,
+	      sif303d_des_con    LIKE sif303d.sif303d_des_con,
+	      sif305d_can_con    LIKE sif305d.sif305d_can_con,
+	      sif305d_monto      LIKE sif305d.sif305d_monto
+	   END RECORD,
+	   l_sif305d_a1    ARRAY[20] OF RECORD
+	      sif305d_lin_rec    LIKE sif305d.sif305d_lin_rec,
+	      sif305d_cod_con    LIKE sif305d.sif305d_cod_con,
+	      sif303d_des_con    LIKE sif303d.sif303d_des_con,
+	      sif305d_can_con    LIKE sif305d.sif305d_can_con,
+	      sif305d_monto      LIKE sif305d.sif305d_monto
+	   END RECORD,
+	   l_sif305d_a2    ARRAY[20] OF RECORD
+	      marca              CHAR(1),
+	      sif305d_lin_rec    LIKE sif305d.sif305d_lin_rec,
+	      sif305d_cod_con    LIKE sif305d.sif305d_cod_con,
+	      sif303d_des_con    LIKE sif303d.sif303d_des_con,
+	      sif305d_can_con    LIKE sif305d.sif305d_can_con,
+	      sif305d_monto      LIKE sif305d.sif305d_monto
+	   END RECORD,
+	   sif300d_des_caj       LIKE sif300d.sif300d_des_caj,
+	   l_sif312d_dependencia CHAR(1),
+	   l_sif303d_cod_grupo   CHAR(2), 
+	   l_sif400d             RECORD LIKE sif400d.*,
+	   l_sif206d             RECORD LIKE sif206d.*,
+	   l_Ok                  SMALLINT,
+	   l_num_concepto        CHAR(4)
+
+	#-------------------------------------------------
+	#... Modulo SIP404P - Mantenimiento Mod/Usuarios
+	#-------------------------------------------------
+	FUNCTION sif404p()
+
+
+	   DEFINE
+	      l_siffor CHAR(30)
+
+	   LET l_siffor = fgl_getenv("SIFFOR")
+	   LET l_siffor = l_siffor clipped, "sif404f"
+	   OPEN FORM sif404f FROM l_siffor 
+	   DISPLAY FORM sif404f
+	   DISPLAY g_fecha USING "dd-mm-yyyy" AT 23,58 ATTRIBUTE(REVERSE)
+	   DISPLAY g_hora AT 23,70 ATTRIBUTE(REVERSE)
+	   DISPLAY "                                                      "
+		AT 23,1 ATTRIBUTE(REVERSE)
+	   LET l_consulta = FALSE
+	   CALL _0000_menu_404()
+
+	END FUNCTION
+
+
+	#----------------------------------------
+	#... Menu de Mantenimiento de Usuarios
+	#----------------------------------------
+	FUNCTION _0000_menu_404()
+
+	   DEFINE
+	      bandera          SMALLINT,
+	      pant_actual      CHAR(7),
+	      l_cont           SMALLINT
+
+      MENU " OPCIONES.." 
+
+      COMMAND KEY("R")  "Registrar"
+		 " Ingresar nuevos Recibos de Aranceles"
+		 CALL _2000_registrar_404()
+
+      COMMAND KEY("C")  "Consultar"
+         " Muestra informacion referente a un Recibo de Arancel"
+         CALL _3000_consultar_404()
+         LET int_flag = FALSE
+         IF l_consulta THEN
+            NEXT OPTION "Pag sig"
+         END IF
+
+      COMMAND KEY("P")  "Pag sig"
+         " Muestra pagina siguiente de la consulta anterior "
+         CALL _3100_pag_sig_404()
+
+      COMMAND KEY("G")  "paG ant"
+         " Muestra pagina anterior de la consulta anterior "
+         CALL _3200_pag_ant_404()
+
+      COMMAND KEY("A")  "Anular"
+         " Anula un Recibo de Arancel"
+         CALL _5000_eliminar_404()
+ 
+      COMMAND KEY("I")  "reImprimir"
+         " Reimprime un Recibo de Arancel"
+         IF l_consulta THEN
+            CALL _8001_mensaje(143)
+            CALL _6000_imprimir_404(l_sif304d.sif304d_num_rec)
+         END IF
+
+      COMMAND KEY("T")  "Transferir"
+         " Establece enlace con la pantalla requerida"
+         LET g_pant_actual = "SIF404P"
+         IF _8020_verificar() THEN
+            LET bandera = 0
+            EXIT MENU
+         END IF
+
+      COMMAND KEY("L") "Limpiar"
+         " Limpia todos los campos de la pantalla"
+         CLEAR FORM 
+         INITIALIZE l_sif304d.*, sif300d_des_caj TO NULL
+         DISPLAY BY NAME l_sif304d.sif304d_num_rec, l_sif304d.sif304d_fec_rec,
+                         l_sif304d.sif304d_cod_caj, l_sif304d.sif304d_nom_rec,
+                         l_sif304d.sif304d_ced_rec, l_sif304d.sif304d_estado,
+                         l_sif304d.sif304d_monto, l_sif304d.sif304d_frm_pag,
+                         sif300d_des_caj
+                ATTRIBUTE (NORMAL)
+         FOR l_cont = 1 TO 20
+            INITIALIZE l_sif305d_a1[l_cont].* TO NULL
+            INITIALIZE l_sif305d_a2[l_cont].* TO NULL
+            IF l_cont < 5 THEN
+               DISPLAY l_sif305d_a1[l_cont].* TO sif404f2[l_cont].*
+                 ATTRIBUTE(NORMAL)
+            END IF
+         END FOR
+
+         LET l_consulta = FALSE
+
+      COMMAND KEY ("O") "retOrnarretOrnar"
+         " Regresa al menu anterior inmediato"
+         CLOSE FORM sif404f
+         LET bandera = 2 
+         EXIT MENU
+
+      COMMAND KEY("S") "Salir"
+         " Regresa a la pantalla de ingreso al sistema"
+         CLOSE FORM sif404f
+         LET bandera = 1 
+         EXIT MENU
+   END MENU
+
+   CASE bandera
+      WHEN 0
+         CLEAR FORM
+         CLOSE FORM sif404f 
+         CALL _8010_transferir()
+
+      WHEN  1
+         CALL _0000_inicio_000()
+
+      WHEN 2
+         CALL sif004p()
+   END CASE
+
+END FUNCTION
+
+
+#---------------------------------------------------
+#... Permite Registrar Nuevos Documentos al Sistema
+#---------------------------------------------------
+FUNCTION _2000_registrar_404()
+
+   DEFINE
+      l_cont        SMALLINT,
+      l_linea       SMALLINT,
+      l_max_num_rec INTEGER
+
+   LET l_consulta = FALSE
+   LET int_flag = FALSE
+   CLEAR FORM 
+   IF NOT g_sif592d.sif592d_reg THEN  --status de registrar  
+      CALL _8001_mensaje(7) 
+      RETURN
+   END IF
+   CALL _2010_entra_dato_404()
+   IF int_flag THEN
+      CALL _8001_mensaje(52)
+      LET int_flag = FALSE
+      LET l_consulta = FALSE
+      RETURN
+   END IF 
+
+   LET l_Ok = TRUE
+   WHENEVER ERROR CONTINUE
+   BEGIN WORK
+
+   IF l_Ok THEN
+      #... Seleccion del Consecutivo
+      {
+      SELECT sif400d.* INTO l_sif400d.* FROM sif400d
+      IF l_sif304d.sif304d_num_rec <> l_sif400d.sif400d_num_ara + 1 THEN
+         LET l_sif400d.sif400d_num_ara = l_sif400d.sif400d_num_ara + 1
+         LET l_sif304d.sif304d_tip_con = "A"
+         LET l_sif304d.sif304d_num_rec = l_sif400d.sif400d_num_ara
+         CALL _8001_mensaje(140)
+         DISPLAY BY NAME l_sif304d.sif304d_num_rec
+      ELSE
+         LET l_sif400d.sif400d_num_ara = l_sif304d.sif304d_num_rec
+      END IF
+      }
+
+     LET l_max_num_rec = 0
+
+     SELECT max(sif304d_num_rec)
+     INTO l_max_num_rec
+     FROM sif304d
+     WHERE sif304d_tip_con = "A"                       
+ 
+     LET l_sif304d.sif304d_num_rec = l_max_num_rec + 1
+
+     UPDATE sif400d SET sif400d_num_ara = l_sif304d.sif304d_num_rec
+     IF status < 0 THEN
+        LET l_Ok = FALSE
+     END IF
+
+     IF l_Ok THEN
+        #... Insercion del Encabezado
+        INSERT INTO sif304d VALUES (l_sif304d.*)
+        IF status < 0 THEN
+           LET l_Ok = FALSE
+        END IF
+     END IF
+
+      #... Insercion del Detalle
+      LET l_linea = 1
+      IF l_Ok THEN
+         FOR l_cont = 1 TO 20
+            IF l_sif305d_a1[l_cont].sif305d_cod_con IS NOT NULL THEN
+               INSERT INTO sif305d(
+		sif305d_tip_con,   
+		sif305d_num_rec,
+		sif305d_lin_rec,
+		sif305d_cod_con,
+		sif305d_can_con,
+		sif305d_monto  ,
+		sif305d_estado )
+                    VALUES (l_sif304d.sif304d_tip_con,
+                            l_sif304d.sif304d_num_rec,
+                            l_linea,
+                            l_sif305d_a1[l_cont].sif305d_cod_con,
+                            l_sif305d_a1[l_cont].sif305d_can_con,
+                            l_sif305d_a1[l_cont].sif305d_monto,
+                            "A")
+               LET l_linea = l_linea + 1
+               IF status < 0 THEN 
+                  LET l_Ok = FALSE
+                  EXIT FOR
+               END IF
+               LET l_Ok = TRUE  
+            END IF
+         END FOR
+      END IF
+   END IF
+
+   IF l_Ok THEN
+      COMMIT WORK
+      CALL _8001_mensaje(28)
+      CALL _8001_mensaje(143)
+      CALL _6000_imprimir_404(l_sif304d.sif304d_num_rec)
+   ELSE
+      ROLLBACK WORK
+      CALL _8001_mensaje(86)
+   END IF
+   WHENEVER ERROR STOP
+
+END FUNCTION
+
+
+#-----------------------------------------
+#... Permite Entrada de Datos del Usuario
+#-----------------------------------------
+FUNCTION _2010_entra_dato_404()
+
+   DEFINE
+      l_cont           SMALLINT,
+      l_des_cta        LIKE sif200d.sif200d_des_cta
+
+   INITIALIZE l_sif304d.* TO NULL
+   FOR l_cont = 1 TO 20
+      INITIALIZE l_sif305d_a1[l_cont].* TO NULL
+      LET l_sif305d_a1[l_cont].sif305d_lin_rec = l_cont
+   END FOR
+
+   #... Inicializar el Registro de Usuarios
+   LET l_sif304d.sif304d_frm_pag = "E"   #<- Efectivo
+   LET l_sif304d.sif304d_monto = 0
+   LET l_sif304d.sif304d_fec_rec = TODAY
+   LET l_sif304d.sif304d_estado = "A"
+   LET l_sif304d.sif304d_resp_c = g_ficha
+   LET l_sif304d.sif304d_fecha_c = TODAY
+   LET l_sif304d.sif304d_resp_ua = g_ficha
+   LET l_sif304d.sif304d_fecha_ua = TODAY
+
+   #... Seleccion del Consecutivo
+   SELECT sif400d.* INTO l_sif400d.* FROM sif400d
+
+   LET l_sif400d.sif400d_num_ara = l_sif400d.sif400d_num_ara + 1
+   LET l_sif304d.sif304d_tip_con = "A"
+   LET l_sif304d.sif304d_num_rec = l_sif400d.sif400d_num_ara
+
+   DISPLAY BY NAME l_sif304d.sif304d_num_rec
+
+   OPTIONS INPUT WRAP
+   INPUT BY NAME l_sif304d.sif304d_fec_rec, 
+                 l_sif304d.sif304d_cod_caj,
+                 l_sif304d.sif304d_nom_rec, 
+	         l_sif304d.sif304d_ced_rec,
+                 l_sif304d.sif304d_estado
+                 WITHOUT DEFAULTS
+
+      ON KEY (CONTROL-M)
+         #... Actualizar el Contenido de los Campos en la Forma
+         DISPLAY BY NAME l_sif304d.sif304d_fec_rec, l_sif304d.sif304d_cod_caj,
+                         sif300d_des_caj, l_sif304d.sif304d_nom_rec,
+                         l_sif304d.sif304d_ced_rec
+
+         SELECT sif300d.sif300d_des_caj
+           INTO sif300d_des_caj
+           FROM sif300d
+          WHERE sif300d.sif300d_cod_caj = l_sif304d.sif304d_cod_caj
+         IF status = NOTFOUND THEN
+            CALL _8001_mensaje(72)
+            NEXT FIELD sif304d_cod_caj
+         END IF
+
+         SELECT sif301d.* FROM sif301d
+          WHERE sif301d.sif301d_cod_caj = l_sif304d.sif304d_cod_caj
+            AND sif301d.sif301d_ficha_usu = g_ficha
+         IF status = NOTFOUND THEN
+            CALL _8001_mensaje(1)
+            NEXT FIELD sif304d_cod_caj
+         END IF
+         DISPLAY BY NAME sif300d_des_caj
+
+         IF l_sif304d.sif304d_nom_rec IS NULL THEN
+            CALL _8001_mensaje(135)
+            NEXT FIELD sif304d_nom_rec
+         END IF
+
+         IF l_sif304d.sif304d_ced_rec IS NULL THEN
+            CALL _8001_mensaje(135)
+            NEXT FIELD sif304d_ced_rec
+         END IF
+
+         #... Salir del Input
+         EXIT INPUT
+
+      AFTER FIELD sif304d_fec_rec
+         IF l_sif304d.sif304d_fec_rec IS NULL OR
+            l_sif304d.sif304d_fec_rec > TODAY THEN
+            CALL _8001_mensaje(139)
+            NEXT FIELD sif304d_fec_rec
+         END IF
+         IF l_sif400d.sif400d_fec_ara IS NOT NULL THEN
+            IF l_sif304d.sif304d_fec_rec <= l_sif400d.sif400d_fec_ara THEN
+               CALL _8001_mensaje(145)
+               NEXT FIELD sif304d_fec_rec
+            END IF
+         END IF
+
+      AFTER FIELD sif304d_cod_caj
+         LET l_tecla = FGL_LASTKEY()
+         IF l_tecla <> FGL_KEYVAL("up") AND l_tecla <> FGL_KEYVAL("down") THEN
+            IF l_sif304d.sif304d_cod_caj = "?" THEN
+               CALL _9150_cons_cajas(5) RETURNING l_sif304d.sif304d_cod_caj,
+                                                  sif300d_des_caj
+               IF l_sif304d.sif304d_cod_caj IS NULL THEN
+                  NEXT FIELD sif304d_cod_caj
+               END IF
+            ELSE
+               SELECT sif300d.sif300d_des_caj
+                 INTO sif300d_des_caj
+                 FROM sif300d
+                WHERE sif300d.sif300d_cod_caj = l_sif304d.sif304d_cod_caj
+               IF status = NOTFOUND THEN
+                  CALL _8001_mensaje(72)
+                  NEXT FIELD sif304d_cod_caj
+               END IF
+
+               SELECT sif301d.* FROM sif301d
+                WHERE sif301d.sif301d_cod_caj = l_sif304d.sif304d_cod_caj
+                  AND sif301d.sif301d_ficha_usu = g_ficha
+               IF status = NOTFOUND THEN
+                  CALL _8001_mensaje(1)
+                  NEXT FIELD sif304d_cod_caj
+               END IF
+
+            END IF
+            DISPLAY BY NAME sif300d_des_caj
+         END IF
+
+      AFTER FIELD sif304d_nom_rec
+         LET l_tecla = FGL_LASTKEY()
+         IF l_tecla <> FGL_KEYVAL("up") AND l_tecla <> FGL_KEYVAL("down") THEN
+            IF l_sif304d.sif304d_nom_rec IS NULL THEN
+               CALL _8001_mensaje(135)
+               NEXT FIELD sif304d_nom_rec
+            END IF
+         END IF
+
+      AFTER FIELD sif304d_ced_rec
+         LET l_tecla = FGL_LASTKEY()
+         IF l_tecla <> FGL_KEYVAL("up") AND l_tecla <> FGL_KEYVAL("down") THEN
+            IF l_sif304d.sif304d_ced_rec IS NULL THEN
+               CALL _8001_mensaje(135)
+               NEXT FIELD sif304d_ced_rec
+            END IF
+         END IF
+
+   END INPUT
+   OPTIONS INPUT NO WRAP
+
+   LET l_tecla = FGL_LASTKEY()
+   IF l_tecla = FGL_KEYVAL("accept") THEN   #<- Tecla Escape
+      LET int_flag = TRUE
+   END IF
+
+   IF NOT int_flag THEN
+      CALL _2011_registrar_404()
+   END IF
+
+   IF NOT int_flag THEN
+      OPTIONS INPUT WRAP
+      INPUT BY NAME l_sif304d.sif304d_frm_pag, l_sif304d.sif304d_cod_cta,
+                    l_des_cta, l_sif304d.sif304d_num_dep,
+                    l_sif304d.sif304d_fec_dep WITHOUT DEFAULTS
+
+         ON KEY (CONTROL-M)
+            #... Actualizar el Contenido de los Campos en la Forma
+            DISPLAY BY NAME l_sif304d.sif304d_frm_pag,
+                            l_sif304d.sif304d_cod_cta, l_des_cta,
+                            l_sif304d.sif304d_num_dep,
+                            l_sif304d.sif304d_fec_dep
+
+            IF l_sif304d.sif304d_frm_pag IS NULL OR
+               l_sif304d.sif304d_frm_pag NOT MATCHES "[ED]" THEN
+               CALL _8001_mensaje(144)
+               NEXT FIELD sif304d_frm_pag
+            END IF
+
+            IF l_sif304d.sif304d_frm_pag = "D" THEN
+               SELECT sif200d_des_cta
+                 INTO l_des_cta
+                 FROM sif200d
+                WHERE sif200d_cod_cta = l_sif304d.sif304d_cod_cta
+             ----     AND sif200d_man_cheq = "S"
+               IF STATUS < 0 OR STATUS = 100 THEN
+                  CALL _8001_mensaje(10)
+                  NEXT FIELD sif304d_cod_cta
+               ELSE
+                  DISPLAY BY NAME l_des_cta
+               END IF
+
+               IF l_sif304d.sif304d_num_dep IS NULL THEN
+                  CALL _8001_mensaje(10)
+                  NEXT FIELD sif304d_num_dep
+               END IF
+               --Verificar que no se encuentre el num. deposito repetido
+               SELECT * FROM sif304d
+                WHERE sif304d_cod_cta = l_sif304d.sif304d_cod_cta
+                  AND sif304d_num_dep = l_sif304d.sif304d_num_dep
+                  AND sif304d_estado <> "D"
+
+             IF STATUS <> NOTFOUND THEN
+                LET l_mensaje1 = "NUM. DEPOSITO YA SE ENCUENTRA REGISTRADO: ==> ",l_sif304d.sif304d_num_rec USING "#######"
+                CALL _8002_mensaje(l_mensaje1)
+                NEXT FIELD sif304d_num_dep
+             END IF   
+
+               IF l_sif304d.sif304d_fec_dep IS NULL OR
+                  l_sif304d.sif304d_fec_dep > TODAY THEN
+                  CALL _8001_mensaje(10)
+                  NEXT FIELD sif304d_fec_dep
+               END IF
+            END IF
+
+            #... Salir del Input
+            EXIT INPUT
+
+         AFTER FIELD sif304d_frm_pag
+            IF l_sif304d.sif304d_frm_pag IS NULL OR
+               l_sif304d.sif304d_frm_pag NOT MATCHES "[ED]" THEN
+               CALL _8001_mensaje(144)
+               NEXT FIELD sif304d_frm_pag
+            END IF
+            IF l_sif304d.sif304d_frm_pag = "E" THEN
+               LET l_sif304d.sif304d_cod_cta = NULL
+               LET l_sif304d.sif304d_num_dep = NULL
+               LET l_sif304d.sif304d_fec_dep = NULL
+               LET l_des_cta = NULL
+               DISPLAY BY NAME l_sif304d.sif304d_cod_cta,
+                               l_sif304d.sif304d_num_dep,
+                               l_sif304d.sif304d_fec_dep,
+                               l_des_cta
+               NEXT FIELD sif304d_frm_pag
+            END IF
+
+         AFTER FIELD sif304d_cod_cta
+            LET l_tecla = FGL_LASTKEY()
+            IF l_tecla <> FGL_KEYVAL("up") AND
+               l_tecla <> FGL_KEYVAL("left") THEN
+               IF l_sif304d.sif304d_cod_cta = "?" THEN
+                  CALL _9110_cons_cuenta(5) RETURNING l_sif304d.sif304d_cod_cta,
+                                                      l_des_cta
+                  IF l_sif304d.sif304d_cod_cta IS NULL THEN
+                     CALL _8001_mensaje(10)
+                     NEXT FIELD sif304d_cod_cta
+                  END IF
+               END IF
+               SELECT sif200d_des_cta
+                 INTO l_des_cta
+                 FROM sif200d
+                WHERE sif200d_cod_cta = l_sif304d.sif304d_cod_cta
+                 ---- AND sif200d_man_cheq = "S"
+               IF STATUS < 0 OR STATUS = 100 THEN
+                  CALL _8001_mensaje(10)
+                  NEXT FIELD sif304d_cod_cta
+               ELSE
+                  DISPLAY BY NAME l_des_cta
+               END IF
+            END IF
+
+         AFTER FIELD sif304d_num_dep
+            LET l_tecla = FGL_LASTKEY()
+            IF l_tecla <> FGL_KEYVAL("up") AND
+               l_tecla <> FGL_KEYVAL("left") THEN
+               IF l_sif304d.sif304d_num_dep IS NULL THEN
+                  CALL _8001_mensaje(10)
+                  NEXT FIELD sif304d_num_dep
+               END IF
+               --Verificar que no se encuentre el num. deposito repetido
+               SELECT * FROM sif304d
+                WHERE sif304d_cod_cta = l_sif304d.sif304d_cod_cta
+                  AND sif304d_num_dep = l_sif304d.sif304d_num_dep
+                  AND sif304d_estado <> "D"
+
+               IF STATUS <> NOTFOUND THEN
+                LET l_mensaje1 = "NUM. DEPOSITO YA SE ENCUENTRA REGISTRADO: ==> ",l_sif304d.sif304d_num_rec USING "#######"
+                CALL _8002_mensaje(l_mensaje1)
+                  NEXT FIELD sif304d_num_dep
+               END IF
+               
+            END IF
+
+         AFTER FIELD sif304d_fec_dep
+            LET l_tecla = FGL_LASTKEY()
+            IF l_tecla <> FGL_KEYVAL("up") AND
+               l_tecla <> FGL_KEYVAL("left") THEN
+               IF l_sif304d.sif304d_fec_dep IS NULL OR
+                  l_sif304d.sif304d_fec_dep > TODAY THEN
+                  CALL _8001_mensaje(10)
+                  NEXT FIELD sif304d_fec_dep
+               END IF
+            END IF
+
+      END INPUT
+      OPTIONS INPUT NO WRAP
+
+      LET l_tecla = FGL_LASTKEY()
+      IF l_tecla = FGL_KEYVAL("accept") THEN   #<- Tecla Escape
+         LET int_flag = TRUE
+      END IF
+   END IF
+
+END FUNCTION
+
+#-----------------------------------------
+#... Permite Entrada de Datos del Usuario
+#-----------------------------------------
+FUNCTION _2011_registrar_404()
+
+   DEFINE
+      l_cont      SMALLINT,
+      l_pos       SMALLINT,
+      l_lin       SMALLINT,
+      l_tecla     SMALLINT,
+      l_prec_unit LIKE sif303d.sif303d_monto
+
+   DISPLAY BY NAME l_sif304d.sif304d_monto
+   CALL set_count(20)
+   OPTIONS INPUT WRAP
+   INPUT ARRAY l_sif305d_a1 WITHOUT DEFAULTS FROM sif404f2.*
+
+      ON KEY (CONTROL-M)
+         IF l_sif305d_a1[l_pos].sif305d_cod_con IS NOT NULL AND
+            l_sif305d_a1[l_pos].sif305d_monto IS NULL THEN
+            NEXT FIELD sif305d_monto
+         END IF
+            
+         LET l_sif304d.sif304d_monto = 0
+         FOR l_cont = 1 TO 20
+            IF l_sif305d_a1[l_cont].sif305d_cod_con IS NULL THEN
+               INITIALIZE l_sif305d_a1[l_cont].* TO NULL
+               LET l_sif305d_a1[l_cont].sif305d_lin_rec = l_cont
+            ELSE
+               IF l_sif305d_a1[l_cont].sif305d_monto IS NOT NULL THEN
+                  LET l_sif304d.sif304d_monto = l_sif304d.sif304d_monto +
+                                              l_sif305d_a1[l_cont].sif305d_monto
+               END IF
+            END IF
+         END FOR
+         IF l_sif304d.sif304d_monto = 0 THEN
+            CALL _8001_mensaje(0)
+            NEXT FIELD sif305d_cod_con
+         END IF
+         EXIT INPUT
+
+      BEFORE ROW
+         LET l_pos = arr_curr()
+         LET l_lin = scr_line()
+         IF l_sif305d_a1[l_pos].sif305d_cod_con IS NULL THEN
+            NEXT FIELD sif305d_cod_con
+         END IF
+
+      AFTER FIELD sif305d_cod_con
+         LET l_tecla = FGL_LASTKEY()
+         IF l_tecla <> FGL_KEYVAL("up") AND
+            l_tecla <> FGL_KEYVAL("down") THEN
+            IF l_sif305d_a1[l_pos].sif305d_cod_con IS NULL THEN
+               INITIALIZE l_sif305d_a1[l_pos].* TO NULL
+               LET l_sif305d_a1[l_pos].sif305d_lin_rec = l_pos
+               DISPLAY l_sif305d_a1[l_pos].* TO sif404f2[l_lin].*
+               NEXT FIELD sif305d_cod_con
+            END IF
+            IF l_sif305d_a1[l_pos].sif305d_cod_con = "?" THEN
+               CALL _9190_cons_conceptos("A", 6)
+                    RETURNING l_sif305d_a1[l_pos].sif305d_cod_con,
+                              l_sif305d_a1[l_pos].sif303d_des_con
+               IF l_sif305d_a1[l_pos].sif305d_cod_con = "?" THEN
+                  NEXT FIELD sif305d_cod_con
+               END IF
+            END IF
+
+            #... Seleccionar la Descripcion del Documento
+	    LET l_sif303d_cod_grupo = "  "
+            SELECT sif303d.sif303d_des_con,sif303d.sif303d_cod_grupo
+              INTO l_sif305d_a1[l_pos].sif303d_des_con,
+	           l_sif303d_cod_grupo
+              FROM sif303d
+             WHERE sif303d.sif303d_tip_con = "A"
+               AND sif303d.sif303d_cod_con = l_sif305d_a1[l_pos].sif305d_cod_con
+            IF status = NOTFOUND THEN
+               NEXT FIELD sif305d_cod_con
+            END IF
+	    
+	    SELECT sif312d_dependencia
+	      INTO l_sif312d_dependencia
+	      FROM sif312d 
+	     WHERE sif312d_cod_grupo = l_sif303d_cod_grupo
+	       AND sif312d_dependencia = "T"
+            IF status <> NOTFOUND THEN  
+               CALL _8002_mensaje("El Concepto no Puede ser Usado por CAJA")
+               NEXT FIELD sif305d_cod_con
+            END IF
+	       
+ 
+            DISPLAY l_sif305d_a1[l_pos].* TO sif404f2[l_lin].*
+
+            # Verifica si el Concepto se encuentra Repetido
+            FOR l_cont = 1 TO 20
+               IF l_sif305d_a1[l_cont].sif305d_cod_con IS NOT NULL AND
+                  l_cont <> l_pos THEN
+                  IF l_sif305d_a1[l_pos].sif305d_cod_con =
+                     l_sif305d_a1[l_cont].sif305d_cod_con THEN
+                     CALL _8001_mensaje(15)
+                     INITIALIZE l_sif305d_a1[l_pos].* TO NULL
+                     LET l_sif305d_a1[l_pos].sif305d_lin_rec = l_pos
+                     DISPLAY l_sif305d_a1[l_pos].* TO sif404f2[l_lin].*
+                     NEXT FIELD sif305d_cod_con
+                  END IF
+               END IF
+            END FOR
+         END IF
+
+      AFTER FIELD sif305d_can_con
+         LET l_tecla = FGL_LASTKEY()
+         IF l_tecla <> FGL_KEYVAL("up") AND
+            l_tecla <> FGL_KEYVAL("left") THEN
+            IF l_sif305d_a1[l_pos].sif305d_can_con IS NULL OR
+               l_sif305d_a1[l_pos].sif305d_can_con < 0 THEN
+               CALL _8001_mensaje(136)
+               NEXT FIELD sif305d_can_con
+            END IF
+
+            #... Buscar el Precio Unitario del Concepto del Arancel
+            SELECT sif303d.sif303d_monto INTO l_prec_unit
+              FROM sif303d
+             WHERE sif303d.sif303d_tip_con = "A"
+               AND sif303d.sif303d_cod_con = l_sif305d_a1[l_pos].sif305d_cod_con
+            IF status = NOTFOUND THEN
+               LET l_prec_unit = 0
+               NEXT FIELD sif305d_can_con
+            END IF
+            LET l_sif305d_a1[l_pos].sif305d_monto = l_prec_unit *
+                                             l_sif305d_a1[l_pos].sif305d_can_con
+            DISPLAY l_sif305d_a1[l_pos].* TO sif404f2[l_lin].*
+         END IF
+
+      AFTER FIELD sif305d_monto
+         IF l_sif305d_a1[l_pos].sif305d_monto IS NULL OR
+            l_sif305d_a1[l_pos].sif305d_monto <= 0 THEN
+            CALL _8001_mensaje(136)
+            NEXT FIELD sif305d_monto
+         END IF   
+
+      AFTER ROW
+         LET l_tecla = FGL_LASTKEY()
+         IF l_tecla = FGL_KEYVAL("accept") THEN
+            IF l_sif305d_a1[l_pos].sif305d_cod_con IS NULL OR
+               l_sif305d_a1[l_pos].sif305d_can_con IS NULL OR
+               l_sif305d_a1[l_pos].sif305d_can_con < 0 THEN
+               INITIALIZE l_sif305d_a1[l_pos].* TO NULL
+               LET l_sif305d_a1[l_pos].sif305d_lin_rec = l_pos
+               DISPLAY l_sif305d_a1[l_pos].* TO sif404f2[l_lin].*
+               NEXT FIELD sif305d_cod_con
+            END IF
+         END IF
+
+         LET l_sif304d.sif304d_monto = 0
+         FOR l_cont = 1 TO 20
+            IF l_sif305d_a1[l_cont].sif305d_cod_con IS NOT NULL THEN
+               LET l_sif304d.sif304d_monto = l_sif304d.sif304d_monto +
+                                             l_sif305d_a1[l_cont].sif305d_monto
+            END IF
+         END FOR
+         DISPLAY BY NAME l_sif304d.sif304d_monto
+
+         # Verificacion de las Teclas Direccionales
+         IF l_pos = 1 AND l_tecla = FGL_KEYVAL("up") THEN
+            NEXT FIELD sif305d_cod_con
+         END IF
+         IF l_tecla = FGL_KEYVAL("down") OR
+            l_tecla = FGL_KEYVAL("return") THEN
+            NEXT FIELD sif305d_cod_con
+         END IF
+         IF l_tecla = FGL_KEYVAL("right") THEN
+            NEXT FIELD sif305d_cod_con
+         END IF
+         IF l_tecla = FGL_KEYVAL("left") THEN
+            NEXT FIELD sif305d_cod_con
+         END IF
+
+   END INPUT
+   OPTIONS INPUT NO WRAP
+
+END FUNCTION
+
+#------------------------------------------
+#... Mostrar informacion de los Documentos
+#------------------------------------------
+FUNCTION _3000_consultar_404()
+
+   DEFINE
+      l_cont          SMALLINT,
+      l_aux           SMALLINT,
+      l_des_cta       LIKE sif200d.sif200d_des_cta
+
+   CLEAR FORM
+   LET l_consulta = FALSE
+   LET int_flag = FALSE
+   IF NOT g_sif592d.sif592d_con THEN
+      CALL _8001_mensaje(6)
+      RETURN 
+   END IF
+   INITIALIZE l_sif304d.* TO NULL
+   FOR l_cont = 1 TO 4
+      INITIALIZE l_sif305d_a1[l_cont].* TO NULL
+      INITIALIZE l_sif305d_a2[l_cont].* TO NULL
+      DISPLAY l_sif305d_a2[l_cont].* TO sif404f1[l_cont].*
+   END FOR
+
+   OPTIONS INPUT WRAP
+   INPUT BY NAME l_sif304d.sif304d_num_rec WITHOUT DEFAULTS
+
+      ON KEY (CONTROL-M)
+         #... Actualizar el Contenido de los Campos en la Forma
+         EXIT INPUT
+
+      AFTER FIELD sif304d_num_rec
+         IF l_sif304d.sif304d_num_rec IS NULL THEN
+            CALL _8001_mensaje(142)
+            NEXT FIELD sif304d_num_rec
+         END IF
+         IF l_sif304d.sif304d_num_rec = 0 THEN
+            CALL _9200_cons_aranceles(8) RETURNING l_sif304d.sif304d_num_rec
+            IF l_sif304d.sif304d_num_rec IS NULL THEN
+               NEXT FIELD sif304d_num_rec
+            END IF
+         END IF
+         SELECT sif304d.* INTO l_sif304d.*
+           FROM sif304d
+          WHERE sif304d.sif304d_tip_con = "A"
+            AND sif304d.sif304d_num_rec = l_sif304d.sif304d_num_rec
+         IF status = NOTFOUND THEN
+            CALL _8001_mensaje(72)
+            NEXT FIELD sif304d_num_rec
+         END IF
+
+   END INPUT
+   OPTIONS INPUT NO WRAP
+
+   LET l_tecla = FGL_LASTKEY()
+   IF l_tecla = FGL_KEYVAL("accept") THEN
+      LET int_flag = TRUE
+   END IF
+
+   IF int_flag THEN
+      CALL _8001_mensaje(52)
+   ELSE
+      SELECT sif300d.sif300d_des_caj
+        INTO sif300d_des_caj
+        FROM sif300d
+       WHERE sif300d.sif300d_cod_caj = l_sif304d.sif304d_cod_caj
+      IF status = NOTFOUND THEN
+         LET sif300d_des_caj = NULL
+      END IF
+
+      SELECT sif200d_des_cta INTO l_des_cta
+        FROM sif200d
+       WHERE sif200d_cod_cta = l_sif304d.sif304d_cod_cta
+        ---- AND sif200d_man_cheq = "S"
+      IF STATUS < 0 OR STATUS = 100 THEN
+         LET l_des_cta = NULL
+      END IF
+      DISPLAY BY NAME l_sif304d.sif304d_num_rec, l_sif304d.sif304d_fec_rec,
+                      l_sif304d.sif304d_cod_caj, sif300d_des_caj,
+                      l_sif304d.sif304d_nom_rec, l_sif304d.sif304d_ced_rec,
+                      l_sif304d.sif304d_estado, l_sif304d.sif304d_monto,
+                      l_sif304d.sif304d_frm_pag, l_sif304d.sif304d_cod_cta,
+                      l_des_cta, l_sif304d.sif304d_num_dep,
+                      l_sif304d.sif304d_fec_dep,
+                      l_sif304d.sif304d_des_anul 
+
+      DECLARE cur_cons_404_I SCROLL CURSOR FOR
+       SELECT "", sif305d.sif305d_lin_rec, sif305d.sif305d_cod_con,
+              sif303d.sif303d_des_con, sif305d.sif305d_can_con,
+              sif305d.sif305d_monto
+         FROM sif305d, sif303d
+        WHERE sif305d.sif305d_tip_con = "A"
+          AND sif305d.sif305d_num_rec = l_sif304d.sif304d_num_rec
+          AND sif303d.sif303d_tip_con = "A"
+          AND sif303d.sif303d_cod_con = sif305d.sif305d_cod_con
+        ORDER BY 2
+      LET l_numpag = 0
+      LET l_regpag = 0
+
+      OPEN cur_cons_404_I
+      LET l_cont = 0
+      FOR l_aux = 1 TO 4     #... Nro. de Filas en el ArregloA
+         FETCH NEXT cur_cons_404_I INTO l_regs.*
+         IF status <> 0 THEN
+            INITIALIZE l_sif305d_a2[l_aux].* TO NULL
+         ELSE
+            LET l_sif305d_a2[l_aux].* = l_regs.*
+            LET l_cont = l_cont + 1
+         END IF
+         LET l_sif305d_a1[l_aux].sif305d_lin_rec =
+                                             l_sif305d_a2[l_aux].sif305d_lin_rec
+         LET l_sif305d_a1[l_aux].sif305d_cod_con =
+                                             l_sif305d_a2[l_aux].sif305d_cod_con
+         LET l_sif305d_a1[l_aux].sif303d_des_con =
+                                             l_sif305d_a2[l_aux].sif303d_des_con
+         DISPLAY l_sif305d_a2[l_aux].* TO sif404f1[l_aux].*
+      END FOR
+
+      CLOSE cur_cons_404_I
+
+      LET l_regpag = l_cont
+      LET l_numpag = l_numpag + 1
+
+      IF l_regpag <> 0 THEN
+         LET l_consulta = TRUE
+      ELSE
+         LET l_consulta = FALSE
+         CALL _8001_mensaje(27)
+      END IF
+   END IF
+
+END FUNCTION
+
+
+#---------------------------------------------
+#... Muestra el Siguiente Bloque de Registros
+#---------------------------------------------
+FUNCTION _3100_pag_sig_404()
+
+   DEFINE
+      l_cont      SMALLINT,
+      l_aux       SMALLINT
+
+   IF NOT l_consulta THEN
+      CALL _8001_mensaje(50)
+      RETURN
+   END IF
+
+   #... Duplicar el Contenido del Arreglo
+   FOR l_cont = 1 TO 4
+      LET l_sif305d_a1[l_cont].sif305d_lin_rec =
+                                          l_sif305d_a2[l_cont].sif305d_lin_rec
+      LET l_sif305d_a1[l_cont].sif305d_cod_con =
+                                          l_sif305d_a2[l_cont].sif305d_cod_con
+      LET l_sif305d_a1[l_cont].sif303d_des_con =
+                                          l_sif305d_a2[l_cont].sif303d_des_con
+      LET l_sif305d_a1[l_cont].sif305d_can_con =
+                                          l_sif305d_a2[l_cont].sif305d_can_con
+      LET l_sif305d_a1[l_cont].sif305d_monto =
+                                          l_sif305d_a2[l_cont].sif305d_monto
+   END FOR
+
+   DECLARE cur_cons_404_S SCROLL CURSOR FOR
+    SELECT "", sif305d.sif305d_lin_rec, sif305d.sif305d_cod_con,
+           sif303d.sif303d_des_con, sif305d.sif305d_can_con,
+           sif305d.sif305d_monto
+      FROM sif305d, sif303d
+     WHERE sif305d.sif305d_tip_con = "A"
+       AND sif305d.sif305d_num_rec = l_sif304d.sif304d_num_rec
+       AND sif305d.sif305d_lin_rec > l_sif305d_a2[l_regpag].sif305d_lin_rec
+       AND sif303d.sif303d_tip_con = "A"
+       AND sif303d.sif303d_cod_con = sif305d.sif305d_cod_con
+     ORDER BY 2
+
+   OPEN cur_cons_404_S
+   LET l_cont = 0
+   FOR l_aux = 1 TO 4     #... Nro. de Filas en el ArregloA
+      FETCH NEXT cur_cons_404_S INTO l_regs.*
+      IF status <> 0 THEN
+         INITIALIZE l_sif305d_a2[l_aux].* TO NULL
+      ELSE
+         LET l_sif305d_a2[l_aux].* = l_regs.*
+         LET l_sif305d_a2[l_aux].marca = NULL
+         LET l_cont = l_cont + 1
+      END IF
+   END FOR
+
+   CLOSE cur_cons_404_S
+
+   IF l_cont > 0 THEN
+      LET l_regpag = l_cont
+      LET l_numpag = l_numpag + 1
+      FOR l_cont = 1 TO 4
+         DISPLAY l_sif305d_a2[l_cont].* TO sif404f1[l_cont].*
+         LET l_sif305d_a1[l_cont].sif305d_lin_rec =
+                                          l_sif305d_a2[l_cont].sif305d_lin_rec
+         LET l_sif305d_a1[l_cont].sif305d_cod_con =
+                                          l_sif305d_a2[l_cont].sif305d_cod_con
+         LET l_sif305d_a1[l_cont].sif303d_des_con =
+                                          l_sif305d_a2[l_cont].sif303d_des_con
+         LET l_sif305d_a1[l_cont].sif305d_can_con =
+                                          l_sif305d_a2[l_cont].sif305d_can_con
+         LET l_sif305d_a1[l_cont].sif305d_monto =
+                                          l_sif305d_a2[l_cont].sif305d_monto
+      END FOR
+   ELSE
+      FOR l_cont = 1 TO 4
+         LET l_sif305d_a2[l_cont].sif305d_lin_rec =
+                                          l_sif305d_a1[l_cont].sif305d_lin_rec
+         LET l_sif305d_a2[l_cont].sif305d_cod_con =
+                                          l_sif305d_a1[l_cont].sif305d_cod_con
+         LET l_sif305d_a2[l_cont].sif303d_des_con =
+                                          l_sif305d_a1[l_cont].sif303d_des_con
+         LET l_sif305d_a2[l_cont].sif305d_can_con =
+                                          l_sif305d_a1[l_cont].sif305d_can_con
+         LET l_sif305d_a2[l_cont].sif305d_monto =
+                                          l_sif305d_a1[l_cont].sif305d_monto
+      END FOR
+      CALL _8001_mensaje(93)
+   END IF
+
+END FUNCTION
+
+#--------------------------------------------
+#... Muestra el Anterior Bloque de Registros 
+#--------------------------------------------
+FUNCTION _3200_pag_ant_404()
+
+   DEFINE
+      l_cont      SMALLINT,
+      l_aux       SMALLINT
+
+
+   IF NOT l_consulta THEN
+      CALL _8001_mensaje(50)
+      RETURN
+   END IF
+
+   IF l_numpag = 1 THEN
+      CALL _8001_mensaje(94)
+   ELSE
+      DECLARE cur_cons_404_A SCROLL CURSOR FOR
+       SELECT "", sif305d.sif305d_lin_rec, sif305d.sif305d_cod_con,
+              sif303d.sif303d_des_con, sif305d.sif305d_can_con,
+              sif305d.sif305d_monto
+         FROM sif305d, sif303d
+        WHERE sif305d.sif305d_tip_con = "A"
+          AND sif305d.sif305d_num_rec = l_sif304d.sif304d_num_rec
+          AND sif305d.sif305d_lin_rec < l_sif305d_a2[1].sif305d_lin_rec
+          AND sif303d.sif303d_tip_con = "A"
+          AND sif303d.sif303d_cod_con = sif305d.sif305d_cod_con
+        ORDER BY 2 DESC
+
+      OPEN cur_cons_404_A
+      LET l_cont = 0
+      FOR l_aux = 1 TO 4     #... Nro. de Filas en el Arreglo
+         FETCH NEXT cur_cons_404_A INTO l_regs.*
+         IF status <> 0 THEN
+            INITIALIZE l_sif305d_a2[4 - l_aux + 1].* TO NULL
+         ELSE
+            LET l_sif305d_a2[4 - l_aux + 1].* = l_regs.*
+            LET l_sif305d_a2[4 - l_aux + 1].marca = NULL
+            LET l_cont = l_cont + 1
+         END IF
+      END FOR
+
+      CLOSE cur_cons_404_A
+
+      LET l_regpag = l_cont
+      LET l_numpag = l_numpag - 1
+      FOR l_cont = 1 TO 4
+         DISPLAY l_sif305d_a2[l_cont].* TO sif404f1[l_cont].*
+         LET l_sif305d_a1[l_cont].sif305d_lin_rec =
+                                          l_sif305d_a2[l_cont].sif305d_lin_rec
+         LET l_sif305d_a1[l_cont].sif305d_cod_con =
+                                          l_sif305d_a2[l_cont].sif305d_cod_con
+         LET l_sif305d_a1[l_cont].sif303d_des_con =
+                                          l_sif305d_a2[l_cont].sif303d_des_con
+         LET l_sif305d_a1[l_cont].sif305d_can_con =
+                                          l_sif305d_a2[l_cont].sif305d_can_con
+         LET l_sif305d_a1[l_cont].sif305d_monto =
+                                          l_sif305d_a2[l_cont].sif305d_monto
+      END FOR
+   END IF
+
+END FUNCTION
+
+#...
+#... Funcion para la Eliminacion de una Caja Chica
+#...
+FUNCTION _5000_eliminar_404()
+   DEFINE
+      l_resp       CHAR(1),
+      l_cont       SMALLINT,
+      l_total_monto decimal(13,2),
+      l_cuenta     char(12),
+      l_cod_org    char(4),
+      l_sub_cta    char(8),
+      l_detalle    char(5)   ,
+      l_des_cta    char(25),
+      l_sif206d_des_mov char(35),
+      l_ano_today  char(4),
+      l_mes_today  char(2)
+
+   LET int_flag = FALSE
+   IF NOT g_sif592d.sif592d_eli THEN  --status de eliminar  
+      CALL _8001_mensaje(7) 
+      RETURN
+   END IF
+   IF NOT l_consulta THEN
+      CALL _8001_mensaje(94)
+      RETURN
+   END IF
+ 
+   IF l_sif304d.sif304d_estado = "A" OR  
+      l_sif304d.sif304d_estado = "C" THEN
+      
+      BEGIN WORK
+
+      LET l_Ok = TRUE 
+	 
+      LET l_sif304d.sif304d_des_anul = " "
+   
+      OPTIONS INPUT WRAP
+      INPUT BY NAME l_sif304d.sif304d_des_anul
+      WITHOUT DEFAULTS
+		 
+      AFTER FIELD sif304d_des_anul 
+         IF l_sif304d.sif304d_des_anul is null or 
+            l_sif304d.sif304d_des_anul[1,1] = " " THEN
+            CALL _8002_mensaje("La Descripcion no Puede Ser NULL")
+            NEXT FIELD sif304d_des_anul 
+         END IF
+      EXIT INPUT   
+      END INPUT
+      OPTIONS INPUT NO WRAP
+
+      LET l_resp = _8030_preguntar("DESEA ANULAR ESTE RECIBO ? (S/N) ",
+                   "SN")
+      IF NOT int_flag AND l_resp = "S" THEN
+         LET l_Ok = TRUE
+	 LET l_sif304d.sif304d_des_anul ="ANUL ",l_sif304d.sif304d_des_anul
+         WHENEVER ERROR CONTINUE
+         BEGIN WORK
+         UPDATE sif304d SET sif304d.sif304d_estado = "D",
+                            sif304d.sif304d_resp_ua = g_ficha,
+                            sif304d.sif304d_fecha_ua = TODAY,
+                            sif304d.sif304d_des_anul =      
+                            l_sif304d.sif304d_des_anul
+          WHERE sif304d.sif304d_tip_con = "A"
+            AND sif304d.sif304d_num_rec = l_sif304d.sif304d_num_rec
+         IF status < 0 THEN
+            LET l_Ok = FALSE
+         END IF
+         IF l_Ok THEN
+            UPDATE sif305d SET sif305d.sif305d_estado = "D"
+             WHERE sif305d.sif305d_tip_con = "A"
+               AND sif305d.sif305d_num_rec = l_sif304d.sif304d_num_rec
+            IF status < 0 THEN
+               LET l_Ok = FALSE
+            END IF
+         END IF
+	 
+         IF l_sif304d.sif304d_estado = "C" THEN
+
+             LET l_total_monto = 0
+	     LET  l_num_concepto = " "
+	     LET l_ano_today = year(TODAY)
+	     LET l_mes_today = month(TODAY)
+	     
+             SELECT sif304d_num_dep,
+	            sif304d_cod_cta,
+		    sif304d_fec_dep,
+		    sif304d_frm_pag
+	       INTO l_sif304d.sif304d_num_dep,
+                    l_sif304d.sif304d_cod_cta,
+                    l_sif304d.sif304d_fec_dep,
+                    l_sif304d.sif304d_frm_pag
+               FROM sif304d
+              WHERE sif304d.sif304d_tip_con = "A"
+               AND sif304d.sif304d_num_rec = l_sif304d.sif304d_num_rec
+	       
+	     ----No se puede anular depositos en efectivo ya que no se sabe
+	     ----La cuenta bancaria del deposito
+	     ----Ni tanpoco la cuenta contable del banco 
+             IF l_sif304d.sif304d_frm_pag = "E" THEN
+                CALL _8002_mensaje("Atencion no anular depositos en efectivo")
+                LET l_Ok = FALSE
+		sleep 8
+             END IF
+	    
+	     DECLARE cur_buscar CURSOR FOR
+             SELECT sif305d_cod_con,sif305d_monto
+	       FROM sif305d
+	      WHERE sif305d_num_rec = l_sif304d.sif304d_num_rec
+	      
+	     FOREACH cur_buscar  INTO l_num_concepto      ,
+                                      l_sif305d.sif305d_monto 
+	     
+             LET l_cuenta  = " "
+	     LET l_sub_cta = " "
+	     LET l_detalle = " "
+	     LET l_cod_org = " "
+	     
+             SELECT sif303d_cod_org         
+	       INTO l_cod_org
+	       FROM sif303d
+              WHERE sif303d.sif303d_tip_con = "A"
+                AND sif303d.sif303d_cod_con = l_num_concepto
+	      
+             SELECT sif303d.sif303d_cuenta, 
+	            sif303d.sif303d_sub_cta,
+                    sif303d.sif303d_detalle
+               INTO l_cuenta, 
+	            l_sub_cta, 
+		    l_detalle
+               FROM sif303d
+              WHERE sif303d.sif303d_tip_con = "I"
+                AND sif303d.sif303d_cod_con = l_cod_org
+		
+            LET l_sif206d_des_mov = "ANUL DEP.BANCARIO No. ",
+	                            l_sif304d.sif304d_num_rec
+				    
+
+       CALL _8002_mensaje("Espere un momento por favor")       
+       INSERT INTO sif206d (sif206d_ano_mov , 
+            sif206d_mes_mov ,  
+            sif206d_fec_mov, 
+            sif206d_cod_cta ,
+            sif206d_cuenta  ,
+            sif206d_sub_cta ,
+            sif206d_detalle ,
+            sif206d_des_mov ,
+            sif206d_tip_doc,
+            sif206d_num_doc,
+            sif206d_fec_doc,
+            sif206d_fec_vnc,
+            sif206d_tip_ref,
+            sif206d_num_ref ,
+            sif206d_sec_doc ,
+            sif206d_tip_org ,
+            sif206d_num_org ,
+            sif206d_cta_org ,
+            sif206d_sec_lin ,
+            sif206d_d_c     ,
+            sif206d_monto   ,
+            sif206d_mov_may ,
+            sif206d_cod_aux ,
+            sif206d_num_hoja ,
+            sif206d_sec,
+            sif206d_fecha_mov ,
+            sif206d_anno_ppto ,
+            sif206d_nro_comp ,
+            sif206d_fec_cierre, 
+            sif206d_org_tip ,
+            sif206d_org_num ,
+            sif206d_org_lin ,
+            sif206d_origen  ,
+            sif206d_cod_con ,
+            sif206d_estado ,
+            sif206d_resp_ua ,
+            sif206d_fecha_ua,
+            sif206d_status_concil ,
+            sif206d_fecha_concil)
+	    
+            VALUES(l_ano_today,
+            l_mes_today ,
+            TODAY,
+            NULL,
+            l_cuenta,
+            l_sub_cta,
+            l_detalle,
+            l_sif206d_des_mov ,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            0,
+            "ANUL",
+            l_sif304d.sif304d_num_dep,
+            l_sif304d.sif304d_cod_cta,
+            l_sif305d.sif305d_lin_rec,
+            "D",
+            l_sif305d.sif305d_monto,
+            "N",
+            NULL,
+            NULL,
+            NULL,
+            TODAY,
+            NULL,
+            NULL,
+            NULL,
+            "DEP.",
+            l_sif304d.sif304d_num_dep,
+            l_sif305d.sif305d_lin_rec,
+            "C",
+            l_num_concepto,
+            "D",
+            g_ficha,
+            TODAY ,
+            "0",
+            NULL)
+	    
+            LET l_total_monto = l_total_monto + l_sif305d.sif305d_monto
+	    
+            IF status <> 0 THEN
+               CALL _8002_mensaje("No se puede registrar en SIF206D 1")
+               LET l_Ok = FALSE
+	       sleep 5
+            END IF
+
+            END FOREACH
+	    
+            ---Registro de banco
+
+            LET l_cuenta  = " "
+	    LET l_sub_cta = " "
+	    LET l_detalle = " "
+	    LET l_des_cta = " " 
+	    
+            SELECT sif200d_cuenta,
+	           sif200d_sub_cta,
+                   sif200d_detalle, 
+	           sif200d_des_cta
+              INTO l_cuenta,
+	           l_sub_cta, 
+		   l_detalle, 
+		   l_des_cta 
+	       FROM sif200d
+              WHERE sif200d.sif200d_cod_cta = l_sif304d.sif304d_cod_cta
+		    
+       CALL _8002_mensaje("Espere un momento por favor")       
+       INSERT INTO sif206d (sif206d_ano_mov ,
+            sif206d_mes_mov ,
+            sif206d_fec_mov,
+            sif206d_cod_cta ,
+            sif206d_cuenta  ,
+            sif206d_sub_cta ,
+            sif206d_detalle ,
+            sif206d_des_mov ,
+            sif206d_tip_doc,
+            sif206d_num_doc,
+            sif206d_fec_doc,
+            sif206d_fec_vnc,
+            sif206d_tip_ref,
+            sif206d_num_ref ,
+            sif206d_sec_doc ,
+            sif206d_tip_org ,
+            sif206d_num_org ,
+            sif206d_cta_org ,
+            sif206d_sec_lin ,
+            sif206d_d_c     ,
+            sif206d_monto   ,
+            sif206d_mov_may ,
+            sif206d_cod_aux ,
+            sif206d_num_hoja ,
+            sif206d_sec,
+            sif206d_fecha_mov ,
+            sif206d_anno_ppto ,
+            sif206d_nro_comp ,
+            sif206d_fec_cierre, 
+            sif206d_org_tip ,
+            sif206d_org_num ,
+            sif206d_org_lin ,
+            sif206d_origen  ,
+            sif206d_cod_con ,
+            sif206d_estado ,
+            sif206d_resp_ua ,
+            sif206d_fecha_ua,
+            sif206d_status_concil ,
+            sif206d_fecha_concil)
+            VALUES (l_ano_today, 
+                    l_mes_today,
+                    TODAY,
+                    l_sif304d.sif304d_cod_cta,
+                    l_cuenta,
+                    l_sub_cta,
+                    l_detalle,
+                    l_sif206d_des_mov ,
+                    "DEP.",
+                    l_sif304d.sif304d_num_dep,
+                    l_sif304d.sif304d_fec_dep,
+                    l_sif304d.sif304d_fec_dep,
+                    "DEP.",
+                    l_sif304d.sif304d_num_dep,
+                    0,
+                    "ANUL",
+                    l_sif304d.sif304d_num_dep,
+                    l_sif304d.sif304d_cod_cta,
+                    0,
+                    "C",
+                    l_total_monto,
+                    "N",
+                    NULL,
+                    NULL,
+                    NULL,
+                    TODAY,
+                    NULL,
+                    NULL,
+                    NULL,
+                    "DEP.",
+                    l_sif304d.sif304d_num_dep,
+                    0,
+                    "C",
+                    NULL,
+                    "D",
+                    g_ficha,
+                    TODAY ,
+                    "0",
+                    NULL)
+
+            IF status <> 0 THEN
+               CALL _8002_mensaje("No se puede registrar en SIF206D 2")
+               LET l_Ok = FALSE
+	       sleep 5
+            END IF
+	    
+	    
+            LET l_sif205t.sif205d_cod_cta = l_sif304d.sif304d_cod_cta
+            LET l_sif205t.sif205d_ano_mov = l_ano_today              
+            LET l_sif205t.sif205d_mes_mov = l_mes_today               
+            LET l_sif205t.sif205d_fec_mov = TODAY                    
+            LET l_sif205t.sif205d_saldo_d = 0
+            LET l_sif205t.sif205d_saldo_c = l_total_monto  
+            LET l_sif205t.sif205d_estado  = "A"
+	    
+            CALL _8002_mensaje("Espere un momento por favor")       
+	    SELECT sif205d INTO l_sif205d.* FROM sif205d 
+             WHERE sif205d.sif205d_cod_cta = l_sif205t.sif205d_cod_cta
+               AND sif205d.sif205d_ano_mov = l_sif205t.sif205d_ano_mov
+               AND sif205d.sif205d_mes_mov = l_sif205t.sif205d_mes_mov
+               AND sif205d.sif205d_fec_mov = l_sif205t.sif205d_fec_mov
+	       
+            IF status = NOTFOUND THEN
+               INSERT INTO sif205d VALUES (l_sif205t.*)
+               IF status <> 0 THEN
+                  CALL _8002_mensaje("No se puede registrar en SIF205D 3")
+                  LET l_Ok = FALSE
+	          sleep 5
+               END IF
+            ELSE
+               UPDATE sif205d
+                  SET sif205d.sif205d_saldo_c = sif205d.sif205d_saldo_c +
+                      l_sif205d.sif205d_saldo_c
+                WHERE sif205d.sif205d_cod_cta = l_sif205d.sif205d_cod_cta
+                  AND sif205d.sif205d_ano_mov = l_sif205d.sif205d_ano_mov
+                  AND sif205d.sif205d_mes_mov = l_sif205d.sif205d_mes_mov
+                  AND sif205d.sif205d_fec_mov = l_sif205d.sif205d_fec_mov
+		  
+               IF status <> 0 THEN
+                  CALL _8002_mensaje("No se puede actualizar n SIF205D 4")
+                  LET l_Ok = FALSE
+	          sleep 5
+               END IF
+            END IF
+	    
+	 END IF 
+	 
+         IF l_Ok THEN
+            COMMIT WORK
+            CALL _8001_mensaje(28)
+            LET l_consulta = FALSE
+         ELSE
+            ROLLBACK WORK
+            CALL _8002_mensaje("LA OPERACION FUE INTERRUMPIDA")
+	    sleep 5
+         END IF
+   
+         WHENEVER ERROR STOP
+      ELSE
+         CALL _8001_mensaje(86)
+      END IF
+   END IF
+END FUNCTION
+
+#...
+#... Funcion para la Eliminacion de una Caja Chica
+#...
+FUNCTION _6000_imprimir_404(l_num_rec)
+
+   DEFINE
+      l_num_rec    LIKE sif304d.sif304d_num_rec,
+      l_sif304d    RECORD LIKE sif304d.*,
+      l_sif305d    RECORD LIKE sif305d.*,
+      l_des_con    LIKE sif303d.sif303d_des_con,
+      l_spool      SMALLINT,
+      l_str        CHAR(100)
+
+   IF NOT g_sif592d.sif592d_apr THEN  --status de aprobar
+      CALL _8001_mensaje(59) 
+      RETURN
+   END IF
+   DECLARE cur_reporte_404 CURSOR FOR
+    SELECT sif304d.*, sif305d.*, sif303d.sif303d_des_con
+      FROM sif304d, sif305d, sif303d
+     WHERE sif304d.sif304d_tip_con = "A"
+       AND sif304d.sif304d_num_rec = l_num_rec
+       AND sif305d.sif305d_tip_con = "A"
+       AND sif305d.sif305d_num_rec = l_num_rec
+       AND sif303d.sif303d_tip_con = "A"
+       AND sif303d.sif303d_cod_con = sif305d.sif305d_cod_con
+     ORDER BY sif305d.sif305d_lin_rec
+
+   LET l_str = NULL
+   LET l_str = "lp 1>/dev/null -d ", g_sif590d.sif590d_cod_impre CLIPPED,
+               " -o nobanner"
+   LET l_spool = FALSE
+   OPEN cur_reporte_404
+   WHILE (TRUE)
+      FETCH cur_reporte_404 INTO l_sif304d.*, l_sif305d.*, l_des_con
+      IF status <> 0 THEN
+         EXIT WHILE
+      END IF
+      IF NOT l_spool THEN
+         LET l_spool = TRUE
+         START REPORT _6000_reporte_404 TO PIPE l_str
+      END IF
+      OUTPUT TO REPORT _6000_reporte_404(1, l_sif304d.*, l_sif305d.*, l_des_con)
+   END WHILE
+   CLOSE cur_reporte_404
+   { --- Neutro temporal por motivo de la crisis de abril del 2009
+   OPEN cur_reporte_404
+   WHILE (TRUE)
+      FETCH cur_reporte_404 INTO l_sif304d.*, l_sif305d.*, l_des_con
+      IF status <> 0 THEN
+         EXIT WHILE
+      END IF
+      IF NOT l_spool THEN
+         LET l_spool = TRUE
+         START REPORT _6000_reporte_404 TO PIPE l_str
+      END IF
+      OUTPUT TO REPORT _6000_reporte_404(2, l_sif304d.*, l_sif305d.*, l_des_con)
+   END WHILE
+   CLOSE cur_reporte_404
+   }
+   IF l_spool THEN
+      FINISH REPORT _6000_reporte_404
+   END IF
+
+END FUNCTION
+
+
+REPORT _6000_reporte_404(numero, l_sif304d, l_sif305d, l_des_con)
+
+   DEFINE
+      numero          SMALLINT,
+      l_sif304d       RECORD LIKE sif304d.*,
+      l_sif305d       RECORD LIKE sif305d.*,
+      l_des_con       LIKE sif303d.sif303d_des_con,
+      l_des_cta       LIKE sif200d.sif200d_des_cta,
+      linea_1         CHAR(75),
+      linea_2         CHAR(75),
+      linea_3         CHAR(75)
+
+   OUTPUT
+      LEFT   MARGIN  0
+      BOTTOM MARGIN  3
+      TOP    MARGIN  0
+      PAGE   LENGTH 33
+
+   FORMAT
+      PAGE HEADER
+         PRINT ASCII(18)
+         PRINT COLUMN 01, "UNIVERSIDAD NACIONAL EXPERIMENTAL DE GUAYANA",
+               COLUMN 63, "SIF404P"
+         PRINT COLUMN 01, "VICE - RECTORADO ADMINISTRATIVO",        
+               COLUMN 63, "FECHA : ", TODAY USING "dd-mm-yyyy"
+         PRINT COLUMN 01, "DPTO. DE TESORERIA / UNIDAD DE CAJA",
+               COLUMN 63, "HORA  : ", TIME
+
+         SKIP 1 LINES
+         PRINT COLUMN 28, "PLANILLA PARA PAGO DE ARANCELES   N.RIF: G-200033436"
+         PRINT COLUMN 28, "======== ==== ==== == ========="
+         SKIP 1 LINES
+
+         PRINT COLUMN 01, "RECIBO: ", l_sif304d.sif304d_num_rec
+                          USING "&&&&&&&&",
+               COLUMN 63, "FECHA : ", l_sif304d.sif304d_fec_rec
+                          USING "dd-mm-yyyy"
+         PRINT COLUMN 01, "NOMBRE: ", l_sif304d.sif304d_nom_rec,
+               COLUMN 63, "CEDULA: ", l_sif304d.sif304d_ced_rec
+                          USING "##,###,###"
+
+         SKIP 1 LINES
+
+         PRINT COLUMN 02, "LN",
+               COLUMN 06, "CONCEPTO",
+               COLUMN 30, "DESCRIPCION",
+               COLUMN 61, "CANT.",
+               COLUMN 72, "MONTO"
+         PRINT COLUMN 01, "====================",
+                          "====================",
+                          "====================",
+                          "===================="
+
+      BEFORE GROUP OF numero
+         SKIP TO TOP OF PAGE
+
+      ON EVERY ROW
+         PRINT COLUMN 02, l_sif305d.sif305d_lin_rec USING "##",
+               COLUMN 06, l_sif305d.sif305d_cod_con,
+               COLUMN 11, l_des_con,
+               COLUMN 62, l_sif305d.sif305d_can_con USING "####",
+               COLUMN 68, l_sif305d.sif305d_monto USING "##,###,##&.&&"
+
+      AFTER GROUP OF numero
+         NEED 5 LINES
+         PRINT COLUMN 01, "--------------------",
+                          "--------------------",
+                          "--------------------",
+                          "--------------------"
+         PRINT COLUMN 60, "TOTAL: ",
+               COLUMN 67, l_sif304d.sif304d_monto USING "###,###,##&.&&"
+
+         CALL _Rut_Monto_Esc(l_sif304d.sif304d_monto)
+              RETURNING linea_1, linea_2, linea_3
+
+         PRINT COLUMN 01, "SON: ",
+               COLUMN 06, linea_1
+         PRINT COLUMN 06, linea_2
+         PRINT COLUMN 06, linea_3
+           
+      PAGE TRAILER
+         SELECT sif200d_des_cta INTO l_des_cta
+           FROM sif200d
+          WHERE sif200d_cod_cta = l_sif304d.sif304d_cod_cta
+           ----- AND sif200d_man_cheq = "S"
+         IF status = NOTFOUND THEN
+            LET l_des_cta = NULL
+         END IF
+         PRINT COLUMN 01, "====================",
+                          "====================",
+                          "====================",
+                          "===================="
+         PRINT COLUMN 01, "FORMA DE PAGO   : ";
+         IF l_sif304d.sif304d_frm_pag = "E" THEN
+            PRINT COLUMN 19, "EFECTIVO"
+         ELSE
+            PRINT COLUMN 19, "DEPOSITO"
+         END IF
+         PRINT COLUMN 01, "BANCO : ", l_sif304d.sif304d_cod_cta, " ", l_des_cta
+         PRINT COLUMN 01, "DEPOSITO : ", l_sif304d.sif304d_num_dep, " ",
+                          "FECHA DEP. : ", l_sif304d.sif304d_fec_dep
+                                           USING "dd-mm-yyyy",
+               COLUMN 57, "FIRMA Y SELLO DEL CAJERO"
+         PRINT ASCII(18)
+ 
+END REPORT
+
